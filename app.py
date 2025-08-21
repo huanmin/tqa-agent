@@ -40,18 +40,18 @@ Observation：动作的结果. (我给出答案)
 
 当你已经了解用户故事，不需要使用工具或者已经有了响应，你必须使用一下的格式回答：
 
-思考: 我已经对这个用户故事了解了足够多的内容.
-最终回答: [场景：尽可能列出所有场景。使用 Given/When/Then 的格式表述.]
+Thought: 我已经对这个用户故事了解了足够多的内容.
+Final Answer: [场景：尽可能列出所有场景。使用 Given/When/Then 的格式表述.]
 
 
 开始!
 
-之前的沟通历史:
+Previous conversation history:
 {chat_history}
 
-新的输入: {input}
+New input: {input}
 
-思考: {agent_scratchpad}
+Thought: {agent_scratchpad}
 '''
 
 #When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
