@@ -7,9 +7,14 @@ from langchain.agents import tool, create_react_agent, AgentExecutor
 from langchain_community.llms import Tongyi
 from langchain_core.prompts import PromptTemplate
 
-os.environ["DASHSCOPE_API_KEY"] = [you api key]
+os.environ["DASHSCOPE_API_KEY"] = 'sk-ae52884170544644b82236bb76b7e928'
 
-llm = Tongyi(model="qwen-plus") 
+llm = Tongyi(
+    model="qwen-plus",
+    model_kwargs={
+        "stop": ["\nThought:", "\nAction:", "\nAction Input:", "\nObservation:", "\nFinal Answer:"]
+    }
+) 
 
 template = ''' 
 你是一个业务分析师，而我是领域专家.
@@ -32,11 +37,11 @@ template = '''
 
 使用 场景 解释用户故事，并遵循如下格式:
 
-Thought：你应该考虑用户故事中不清晰的部分。但忽略技术细节.
-Action：要采取的动作，应该是以下工具之一 [{tool_names}] (问我需要澄清的问题)
-Action Input：动作的输入内容。（这个应该是用来澄清用户故事而提出的问题）
-Observation：动作的结果. (我给出答案)
-... （这个 Thought/Action/Action Input/Observation 过程重复至少 3 次而不多于 10 次）
+Thought: 你应该考虑用户故事中不清晰的部分。但忽略技术细节.
+Action: 要采取的动作，应该是以下工具之一 [{tool_names}] (问我需要澄清的问题)。
+Action Input: 动作的输入内容。（这个应该是用来澄清用户故事而提出的问题）。
+Observation: 动作的结果. (我给出答案)。
+...(这个 Thought/Action/Action Input/Observation 过程重复至少 3 次而不多于 10 次)
 
 当你已经了解用户故事，不需要使用工具或者已经有了响应，你必须使用一下的格式回答：
 
@@ -64,9 +69,10 @@ starting_llm = True
 @tool("Ask The Domain Expert")
 def ask_expert(question: str) -> str:
     """当你需要提出问题来澄清用户故事时非常有用."""
-    print(question)
+    print(f"AI提问: {question}")
     questions_queue.put(question, block=False)
     answer = answers_queue.get()  # Wait for an answer to be put into the queue
+    print(f"用户回答: {answer}")
     return answer
 
 
@@ -85,7 +91,7 @@ with gr.Blocks() as app:
     with gr.Row():
         with gr.Column():
             chatbot = gr.Chatbot()
-            msg = gr.Textbox(label="Clarification (Type 'hi' to start)",
+            msg = gr.Textbox(label="Clarification",
                              placeholder="Give Clarification...")
         with gr.Column():
             sty = ('作为学校的教职员工（As a faculty），\n'
@@ -99,7 +105,8 @@ with gr.Blocks() as app:
                    '学生可以根据身份信息，查询自己的账号；\n'
                    '在报道注册时，学生登录账号，按照录取通知书完成学年的注册；')
             biz_context = gr.Code(label="业务上下文 (Business Context)",
-                                  value=ctx)
+                                  value=ctx, lines=14)
+            scenarios_btn = gr.Button("Scenarios")
 
 
     def start_llm(context, story):
@@ -111,20 +118,26 @@ with gr.Blocks() as app:
 
 
     def respond(message, chat_history, context, story):
-        global starting_llm
-        if starting_llm:
-            # Start start_llm in a separate thread to avoid blocking
-            threading.Thread(target=(lambda: start_llm(context, story))).start()
-            bot_message = questions_queue.get()
-            chat_history.append((message, bot_message))
-            starting_llm = False
-            return "", chat_history
         answers_queue.put(message)
         bot_message = questions_queue.get()
         chat_history.append((message, bot_message))
         return "", chat_history
 
+    def start_process(context, story, chat_history):
+        # 在现有历史中添加分隔符，标记新对话开始
+        chat_history.append(("", "--- 开始新的分析对话 ---"))
+   
+        # 启动整个流程的函数
+        global starting_llm
+        threading.Thread(target=(lambda: start_llm(context, story))).start()
+        bot_message = questions_queue.get()
+        chat_history.append(("", bot_message))  # 空字符串表示系统消息
+        starting_llm = False
+        return chat_history
 
+    # 绑定按钮点击事件
+    scenarios_btn.click(start_process, [biz_context, user_story, chatbot], [chatbot])
+   
     msg.submit(respond, [msg, chatbot, biz_context, user_story], [msg, chatbot])
 
 app.launch()
